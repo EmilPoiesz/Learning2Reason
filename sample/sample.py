@@ -41,6 +41,12 @@ def sample_one_rule(preds):
     random.shuffle(lits)
     return (lits[:-1], lits[-1])
 
+def sample_one_rule_no_conjugation(preds):
+    head_num = 1
+    lits = random.sample(preds, min(head_num + 1, len(preds)))
+    random.shuffle(lits)
+    return ([lits[0]], lits[1])
+
 
 def sample_rule_priority(preds):
     pred_num = len(preds)
@@ -53,6 +59,29 @@ def sample_rule_priority(preds):
         rule = None
         while True:
             rule = sample_one_rule(preds)
+            rule_hash = ' '.join(sorted(rule[0])) + ' ' + rule[1]
+            if rule_hash not in cache:
+                cache.add(rule_hash)
+                break
+        rules.append(rule)
+
+    facts = random.sample(preds, fact_num)
+
+    query = random.sample(preds, 1)[0]
+
+    return rules, facts, query
+
+def sample_rule_priority_no_conjugation(preds):
+    pred_num = len(preds)
+    rule_num = random.randint(0, 4 * pred_num)
+    fact_num = random.randint(0, pred_num)
+
+    cache = set()
+    rules = []
+    for _ in range(0, rule_num):
+        rule = None
+        while True:
+            rule = sample_one_rule_no_conjugation(preds)
             rule_hash = ' '.join(sorted(rule[0])) + ' ' + rule[1]
             if rule_hash not in cache:
                 cache.add(rule_hash)
@@ -101,6 +130,85 @@ def sample_label_priority(preds):
             lit, label = node[0], node[1]
             head_cand = [x[0] for x in prev_level if x[1] == label]
             head_num = random.randint(1, min(3, len(head_cand)))
+            head = random.sample(head_cand, head_num)
+            rules.append((head, lit))
+
+        levels.append(level)
+        prev_level = level
+
+    # phase_2
+    rule_num = random.randint(0 * pred_num, 3 * pred_num)
+    nodes = [x for y in levels for x in y]
+    neg_nodes = [x for x in nodes if x[1] == 0]
+    rule_cnt = 0
+    while rule_cnt < rule_num:
+        tail_node = random.sample(nodes, 1)[0]
+
+        tail = tail_node[0]
+        head_cand = [x for x in nodes if x[0] != tail]
+        while True:
+            head_num = random.randint(1, min(3, len(head_cand)))
+            head_nodes = None
+            head_nodes = random.sample(head_cand, head_num)
+            if not (all([x[1] == 1 for x in head_nodes]) and tail_node[1] == 0):
+                break
+        head = [x[0] for x in head_nodes]
+        rules.append((head, tail))
+        rule_cnt += 1
+
+        # if all predicates in the head and tail of a rule are True,
+        # we add one extra rule where its head and tail are both False
+        # to balance the number of True/Positive predicates in all rules
+        if all(x[1] == 1 for x in head_nodes):
+            neg_tail = random.sample(neg_nodes, 1)[0][0]
+            neg_head_cand = [x for x in neg_nodes if x[0] != neg_tail]
+            neg_head_num = random.randint(1, min(3, len(neg_head_cand)))
+            neg_head_nodes = random.sample(neg_head_cand, neg_head_num)
+            neg_head = [x[0] for x in neg_head_nodes]
+            rules.append((neg_head, neg_tail))
+            rule_cnt += 1
+
+    facts = [x[0] for x in levels[0] if x[1] == 1]
+
+    query = random.sample([x[0] for x in nodes], 1)[0]
+
+    return rules, facts, query
+
+def sample_label_priority_no_conjugation(preds):
+    preds_ = preds[:]
+    random.shuffle(preds_)
+    pred_num = len(preds)
+
+    graph_depth = random.randint(1, pred_num // 2)
+    width = pred_num // graph_depth
+
+    preds_0 = preds_[:pred_num % graph_depth]
+    preds_ = preds_[pred_num % graph_depth:]
+
+    rules = []
+    levels = []
+
+    prev_level = [[x, random.randint(0, 1)] for x in preds_[:width]]
+    if graph_depth > 1:
+        prev_level[0][1], prev_level[1][1] = 0, 1
+    else:
+        prev_level[0][1], prev_level[1][1], prev_level[2][1], prev_level[3][1] = 0, 1, 0, 1
+    preds_ = preds_[width:]
+    levels.append(prev_level)
+
+    # phase_1
+    for d in range(0, graph_depth - 1):
+        level = [[x, random.randint(0, 1)] for x in preds_[:width]]
+        preds_ = preds_[width:]
+        if len(preds_0) != 0:
+            level.append((preds_0[0], random.randint(0, 1)))
+            preds_0 = preds_0[1:]
+        level[0][1], level[1][1] = 0, 1
+
+        for node in level:
+            lit, label = node[0], node[1]
+            head_cand = [x[0] for x in prev_level if x[1] == label]
+            head_num = 1
             head = random.sample(head_cand, head_num)
             rules.append((head, lit))
 
@@ -282,6 +390,10 @@ def process_example(example, max_depth):
 def sample_one_example(vocab, min_pred_num, max_pred_num, max_depth, algo):
     pred_num = random.randint(min_pred_num, max_pred_num)
     preds = random.sample(vocab, pred_num)
+    if algo == 'RP_NO_CONJUGATION':
+        rules, facts, query = sample_rule_priority_no_conjugation(preds)
+    if algo == 'LP_NO_CONJUGATION':
+        rules, facts, query = sample_label_priority_no_conjugation(preds)
     if algo == 'RP':
         rules, facts, query = sample_rule_priority(preds)
     if algo == 'LP':

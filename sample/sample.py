@@ -94,7 +94,6 @@ def sample_rule_priority_no_conjugation(preds):
 
     return rules, facts, query
 
-
 def sample_label_priority(preds):
     preds_ = preds[:]
     random.shuffle(preds_)
@@ -253,7 +252,6 @@ def sample_label_priority_no_conjugation(preds):
 
     return rules, facts, query
 
-
 def sample_lp_star(preds):
     preds_ = preds[:]
     pred_num = len(preds)
@@ -323,6 +321,74 @@ def sample_lp_star(preds):
 
     return rules, facts, query
 
+def sample_lp_star_no_conjugation(preds):
+    preds_ = preds[:]
+    pred_num = len(preds)
+
+    graph_depth = random.randint(2, pred_num // 2)
+    width = pred_num // graph_depth
+
+    preds_0 = preds_[:pred_num % graph_depth]
+    preds_ = preds_[pred_num % graph_depth:]
+
+    rules = []
+    levels = []
+
+    prev_level = [[x, random.randint(0, 1)] for x in preds_[:width]]
+    prev_level[0][1], prev_level[1][1] = 0, 1
+    preds_ = preds_[width:]
+    levels.append(prev_level)
+
+    # phase_1
+    for d in range(0, graph_depth - 1):
+        level = [[x, random.randint(0, 1)] for x in preds_[:width]]
+        if preds_0 != []:
+            level.append((preds_0[0], random.randint(0, 1)))
+            preds_0 = preds_0[1:]
+        level[0][1], level[1][1] = 0, 1
+        preds_ = preds_[width:]
+
+        for node in level:
+            lit, label = node[0], node[1]
+            head_nodes_cand = prev_level
+            if label == 1:
+                head_nodes_cand = [x for x in prev_level if x[1] == 1]
+            head_num = 1
+            while True:
+                head_nodes = random.sample(head_nodes_cand, head_num)
+                if not (all([x[1] for x in head_nodes]) and label == 0):
+                    break
+            head = [x[0] for x in head_nodes]
+            rules.append((head, lit))
+
+        levels.append(level)
+        prev_level = level
+
+    # phase_2
+    rule_num = random.randint(0 * pred_num, 3 * pred_num)
+    nodes = [x for y in levels for x in y]
+    for _ in range(0, rule_num):
+        tail_d = random.randint(0, len(levels) - 2)
+        tail_level = levels[tail_d]
+        tail_node = random.sample([x for x in tail_level if x[1] == 1], 1)[0]
+
+        tail = tail_node[0]
+        head_cand = [x for y in levels[tail_d:] for x in y
+            if x[0] != tail]
+        head_num = random.randint(1, min(3, len(head_cand)))
+        while True:
+            head_nodes = random.sample(head_cand, head_num)
+            if not all([x[1] for x in head_nodes]):
+                break
+        head_nodes = random.sample(head_cand, head_num)
+        head = [x[0] for x in head_nodes]
+        rules.append((head, tail))
+
+    facts = [x[0] for x in levels[0] if x[1] == 1]
+
+    query = random.sample([x[0] for x in nodes], 1)[0]
+
+    return rules, facts, query
 
 def forward_chain(rules, facts):
     res = {}
@@ -400,6 +466,8 @@ def sample_one_example(vocab, min_pred_num, max_pred_num, max_depth, algo):
         rules, facts, query = sample_label_priority(preds)
     if algo == 'LP_STAR':
         rules, facts, query = sample_lp_star(preds)
+    if algo == 'LP_STAR_NO_CONJUGATION':
+        rules, facts, query = sample_lp_star_no_conjugation(preds)
 
     if query is None:
         return None

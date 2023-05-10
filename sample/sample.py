@@ -225,7 +225,7 @@ def sample_label_priority_no_conjugation(preds):
         tail = tail_node[0]
         head_cand = [x for x in nodes if x[0] != tail]
         while True:
-            head_num = random.randint(1, min(3, len(head_cand)))
+            head_num = 1
             head_nodes = None
             head_nodes = random.sample(head_cand, head_num)
             if not (all([x[1] == 1 for x in head_nodes]) and tail_node[1] == 0):
@@ -375,7 +375,7 @@ def sample_lp_star_no_conjugation(preds):
         tail = tail_node[0]
         head_cand = [x for y in levels[tail_d:] for x in y
             if x[0] != tail]
-        head_num = random.randint(1, min(3, len(head_cand)))
+        head_num = 1
         while True:
             head_nodes = random.sample(head_cand, head_num)
             if not all([x[1] for x in head_nodes]):
